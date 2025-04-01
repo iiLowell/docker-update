@@ -12,7 +12,7 @@ show_help() {
     echo -e "${BLUE}Docker Container Update Utility${NC}"
     echo
     echo "Usage:"
-    echo "  update-docker [OPTIONS] [CONTAINER_NAME]"
+    echo "  docker-update [OPTIONS] [CONTAINER_NAME]"
     echo
     echo "Options:"
     echo "  -h, --help              Show this help message"
@@ -25,10 +25,10 @@ show_help() {
     echo "  -v, --verbose         Increase output verbosity"
     echo
     echo "Examples:"
-    echo "  update-docker nginx                # Update single container"
-    echo "  update-docker -a                   # Update all running containers"
-    echo "  update-docker -f mysql            # Force update container"
-    echo "  update-docker -d wordpress        # Dry run update"
+    echo "  docker-update nginx                # Update single container"
+    echo "  docker-update -a                   # Update all running containers"
+    echo "  docker-update -f mysql            # Force update container"
+    echo "  docker-update -d wordpress        # Dry run update"
     echo
     echo "The script will:"
     echo "  1. Backup container configuration (unless --skip-backup)"

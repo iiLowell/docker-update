@@ -26,23 +26,23 @@ A command-line tool for managing Docker container updates efficiently. This util
 
 ```bash
 # Download the script
-sudo curl -o /usr/local/bin/update-docker https://raw.githubusercontent.com/yourusername/docker-update-utility/main/update-docker
+sudo curl -o /usr/local/bin/docker-update https://raw.githubusercontent.com/iiLowell/docker-update/refs/heads/main/docker-update.sh
 
 # Make it executable
-sudo chmod +x /usr/local/bin/update-docker
+sudo chmod +x /usr/local/bin/docker-update
 ```
 
 ### Manual Installation
 
-1. Save the script as `update-docker` in `/usr/local/bin/`:
+1. Save the script as `docker-update` in `/usr/local/bin/`:
    ```bash
-   sudo nano /usr/local/bin/update-docker
+   sudo nano /usr/local/bin/docker-update
    # Paste the script content
    ```
 
 2. Make the script executable:
    ```bash
-   sudo chmod +x /usr/local/bin/update-docker
+   sudo chmod +x /usr/local/bin/docker-update
    ```
 
 ## Usage
@@ -51,16 +51,16 @@ sudo chmod +x /usr/local/bin/update-docker
 
 ```bash
 # Update a single container
-update-docker container_name
+docker-update container_name
 
 # Update all running containers
-update-docker --all
+docker-update --all
 
 # Show help
-update-docker --help
+docker-update --help
 
 # List containers and their update status
-update-docker --list
+docker-update --list
 ```
 
 ### Options
@@ -80,25 +80,25 @@ update-docker --list
 
 ```bash
 # Update nginx container
-update-docker nginx
+docker-update nginx
 
 # Force update MySQL container
-update-docker --force mysql
+docker-update --force mysql
 
 # List all containers and their versions
-update-docker --list
+docker-update --list
 
 # Dry run update of WordPress container
-update-docker --dry-run wordpress
+docker-update --dry-run wordpress
 
 # Update all containers quietly
-update-docker --all --quiet
+docker-update --all --quiet
 
 # Update with detailed output
-update-docker --verbose nginx
+docker-update --verbose nginx
 
 # Update without backup
-update-docker --skip-backup nginx
+docker-update --skip-backup nginx
 ```
 
 ## Backup and Recovery
@@ -130,8 +130,8 @@ wordpress          | wordpress:5.8 (5.8.2)             | wordpress:5.8 (5.8.3)  
 
 1. Permission Denied
    ```bash
-   sudo chown root:root /usr/local/bin/update-docker
-   sudo chmod 755 /usr/local/bin/update-docker
+   sudo chown root:root /usr/local/bin/docker-update
+   sudo chmod 755 /usr/local/bin/docker-update
    ```
 
 2. Docker Socket Access
@@ -171,19 +171,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Author
 
-[Your Name]
-
-## Acknowledgments
-
-- Docker Community
-- Contributors and testers
-
-## Changelog
-
-### v1.0.0 (YYYY-MM-DD)
-- Initial release
-- Basic update functionality
-
-### v1.1.0 (YYYY-MM-DD)
-- Added version comparison
-- Enhanced listing functionality
+[iiLowell](https://github.com/iiLowell)
