@@ -165,10 +165,6 @@ wordpress          | wordpress:5.8 (5.8.2)             | wordpress:5.8 (5.8.3)  
 
 Feel free to submit issues and enhancement requests!
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
 ## Author
 
 [iiLowell](https://github.com/iiLowell)

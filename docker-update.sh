@@ -130,7 +130,7 @@ update_container() {
     if ! docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
         echo -e "${RED}Error: Container '${container_name}' not found${NC}"
         return 1
-    }
+    fi
 
     # Get image name
     local image_name=$(docker inspect --format='{{.Config.Image}}' "${container_name}")
