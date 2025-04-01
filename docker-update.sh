@@ -194,14 +194,14 @@ update_container() {
         echo "Creating new container..."
     fi
 
-    local create_command="docker create --name ${container_name} \
+    local create_command="docker create --name \"${container_name}\" \
         ${ports} \
         ${volumes} \
         ${env_vars} \
         ${network} \
         ${labels} \
-        --restart=${restart_policy} \
-        ${image_name}"
+        --restart=\"${restart_policy}\" \
+        \"${image_name}\""
 
     if [ "$verbose" == "true" ]; then
         echo "Running: ${create_command}"
