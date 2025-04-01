@@ -65,38 +65,56 @@ backup_container() {
 # Function to list containers and their images
 list_containers() {
     # Print header
-    printf "${BLUE}%-20s | %-50s | %-10s${NC}\n" "Container Name" "Image" "Status"
-    printf "%.85s\n" "==============================================================================="
+    printf "${BLUE}%-20s | %-30s | %-15s | %-15s | %-10s${NC}\n" "Container Name" "Image" "Current Version" "Latest Version" "Status"
+    printf "%.95s\n" "================================================================================="
 
-    # Get all container information in one call
+    # Get all container information
     sudo docker ps --format '{{.Names}}\t{{.Image}}\t{{.ID}}' | while IFS=$'\t' read -r container image container_id; do
-        # Get current image ID without pulling
-        current_id=$(sudo docker inspect --format='{{.Id}}' "${container}")
+        # Get current version/tag
+        current_version=$(sudo docker inspect --format='{{.Config.Image}}' "${container}" | awk -F: '{print $2}')
+        current_version=${current_version:-"latest"}
 
-        # Check if update is available without pulling
-        remote_digest=$(sudo docker manifest inspect "${image}" 2>/dev/null | grep -m1 "digest" | cut -d'"' -f4)
-        local_digest=$(sudo docker inspect --format='{{index .RepoDigests 0}}' "${image}" 2>/dev/null | cut -d'@' -f2)
+        # Get latest version without pulling
+        latest_version=""
+        if [[ $image == *":"* ]]; then
+            base_image=$(echo $image | cut -d':' -f1)
+            latest_version=$(curl -s "https://registry.hub.docker.com/v2/repositories/${base_image}/tags" 2>/dev/null | jq -r '.results[0].name')
+        fi
+        latest_version=${latest_version:-"unknown"}
 
-        # Set status based on digest comparison
-        if [ -z "$remote_digest" ] || [ -z "$local_digest" ]; then
-            status="${YELLOW}Unknown${NC}"
-        elif [ "$remote_digest" == "$local_digest" ]; then
-            status="${GREEN}Current${NC}"
+        # Check if update is available
+        if [ "$current_version" == "latest" ]; then
+            remote_digest=$(sudo docker manifest inspect "${image}" 2>/dev/null | grep -m1 "digest" | cut -d'"' -f4)
+            local_digest=$(sudo docker inspect --format='{{index .RepoDigests 0}}' "${image}" 2>/dev/null | cut -d'@' -f2)
+
+            if [ -z "$remote_digest" ] || [ -z "$local_digest" ]; then
+                status="${YELLOW}Unknown${NC}"
+            elif [ "$remote_digest" == "$local_digest" ]; then
+                status="${GREEN}Current${NC}"
+            else
+                status="${YELLOW}Update available${NC}"
+            fi
         else
-            status="${YELLOW}Update available${NC}"
+            if [ "$current_version" == "$latest_version" ]; then
+                status="${GREEN}Current${NC}"
+            else
+                status="${YELLOW}Update available${NC}"
+            fi
         fi
 
         # Format and print the row
-        printf "%-20s | %-50s | %b\n" \
+        printf "%-20s | %-30s | %-15s | %-15s | %b\n" \
             "${container}" \
-            "${image:0:50}" \
+            "${image:0:30}" \
+            "${current_version:0:15}" \
+            "${latest_version:0:15}" \
             "${status}"
     done
 
     # Print footer
     echo
     echo -e "${BLUE}Notes:${NC}"
-    echo "- Status indicates if updates are available based on image digests"
+    echo "- Version comparison is based on tags and image digests"
     echo -e "- ${GREEN}Current${NC}: Running latest version"
     echo -e "- ${YELLOW}Update available${NC}: Newer version exists"
     echo -e "- ${YELLOW}Unknown${NC}: Unable to determine update status"
