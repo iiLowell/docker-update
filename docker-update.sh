@@ -7,6 +7,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Check for root/sudo privileges
+if [ "$(id -u)" != "0" ]; then
+    echo -e "${RED}This script must be run as root or with sudo privileges${NC}"
+    exec sudo "$0" "$@"
+    exit $?
+fi
+
+# Create backup directory with proper permissions
+BACKUP_DIR="/tmp/docker-backups"
+sudo mkdir -p "${BACKUP_DIR}"
+sudo chown "$(id -u):$(id -g)" "${BACKUP_DIR}"
+
 # Function to display help
 show_help() {
     echo -e "${BLUE}Docker Container Update Utility${NC}"
@@ -46,7 +58,7 @@ backup_container() {
     local backup_file="${backup_dir}/${container_name}_${timestamp}.json"
 
     mkdir -p "${backup_dir}"
-    docker inspect "${container_name}" > "${backup_file}"
+    sudo docker inspect "${container_name}" > "${backup_file}"
     echo "Configuration backed up to: ${backup_file}"
 }
 
@@ -56,9 +68,9 @@ list_containers() {
     printf "${BLUE}%-20s | %-50s | %-50s | %-15s${NC}\n" "Container Name" "Current Version" "Latest Available" "Status"
     printf "%.120s\n" "==============================================================================================================================================="
 
-    docker ps --format '{{.Names}}' | while read container; do
+    sudo docker ps --format '{{.Names}}' | while read container; do
         # Get current image and tag
-        current_image=$(docker inspect --format='{{.Config.Image}}' "${container}")
+        current_image=$(sudo docker inspect --format='{{.Config.Image}}' "${container}")
 
         # Split image name and tag
         if [[ $current_image == *":"* ]]; then
@@ -70,16 +82,16 @@ list_containers() {
         fi
 
         # Pull latest image silently
-        docker pull -q "${image_name}:${current_tag}" >/dev/null 2>&1
+        sudo docker pull -q "${image_name}:${current_tag}" >/dev/null 2>&1
 
         # Get image IDs and details
-        current_id=$(docker inspect --format='{{.Id}}' "${container}")
-        current_digest=$(docker inspect --format='{{.RepoDigests}}' "${current_image}" 2>/dev/null)
-        latest_digest=$(docker inspect --format='{{.RepoDigests}}' "${image_name}:${current_tag}" 2>/dev/null)
+        current_id=$(sudo docker inspect --format='{{.Id}}' "${container}")
+        current_digest=$(sudo docker inspect --format='{{.RepoDigests}}' "${current_image}" 2>/dev/null)
+        latest_digest=$(sudo docker inspect --format='{{.RepoDigests}}' "${image_name}:${current_tag}" 2>/dev/null)
 
         # Get detailed version information
-        current_version=$(docker inspect "${container}" --format='{{.Config.Image}} ({{.Id}})')
-        latest_version=$(docker inspect "${image_name}:${current_tag}" --format='{{.RepoTags}} ({{.Id}})')
+        current_version=$(sudo docker inspect "${container}" --format='{{.Config.Image}} ({{.Id}})')
+        latest_version=$(sudo docker inspect "${image_name}:${current_tag}" --format='{{.RepoTags}} ({{.Id}})')
 
         # Compare and set status
         if [ "$current_digest" == "$latest_digest" ]; then
@@ -89,8 +101,8 @@ list_containers() {
         fi
 
         # Try to get more detailed version information from labels
-        current_detail=$(docker inspect "${container}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
-        latest_detail=$(docker inspect "${image_name}:${current_tag}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
+        current_detail=$(sudo docker inspect "${container}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
+        latest_detail=$(sudo docker inspect "${image_name}:${current_tag}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
 
         # If version labels exist, add them to the output
         if [ ! -z "$current_detail" ]; then
@@ -127,13 +139,13 @@ update_container() {
     local verbose="$6"
 
     # Check if container exists
-    if ! docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
+    if ! sudo docker ps -a --format '{{.Names}}' | grep -q "^${container_name}$"; then
         echo -e "${RED}Error: Container '${container_name}' not found${NC}"
         return 1
     fi
 
     # Get image name
-    local image_name=$(docker inspect --format='{{.Config.Image}}' "${container_name}")
+    local image_name=$(sudo docker inspect --format='{{.Config.Image}}' "${container_name}")
 
     if [ "$quiet" != "true" ]; then
         echo -e "${BLUE}Updating container '${container_name}' using image '${image_name}'${NC}"
@@ -141,9 +153,9 @@ update_container() {
 
     # Check if update is needed
     if [ "$force" != "true" ]; then
-        docker pull -q "${image_name}" >/dev/null 2>&1
-        local latest_id=$(docker image inspect "${image_name}" --format '{{.Id}}')
-        local running_id=$(docker inspect --format='{{.Image}}' "${container_name}")
+        sudo docker pull -q "${image_name}" >/dev/null 2>&1
+        local latest_id=$(sudo docker image inspect "${image_name}" --format '{{.Id}}')
+        local running_id=$(sudo docker inspect --format='{{.Image}}' "${container_name}")
         if [ "$latest_id" == "$running_id" ]; then
             echo -e "${GREEN}Container '${container_name}' is already running the latest version${NC}"
             return 0
@@ -164,37 +176,37 @@ update_container() {
     if [ "$verbose" == "true" ]; then
         echo "Stopping container..."
     fi
-    docker stop "${container_name}" >/dev/null 2>&1
+    sudo docker stop "${container_name}" >/dev/null 2>&1
 
     # Pull latest image
     if [ "$verbose" == "true" ]; then
         echo "Pulling latest image..."
-        docker pull "${image_name}"
+        sudo docker pull "${image_name}"
     else
-        docker pull -q "${image_name}" >/dev/null 2>&1
+        sudo docker pull -q "${image_name}" >/dev/null 2>&1
     fi
 
     # Get container configuration
-    local container_config=$(docker inspect "${container_name}")
-    local ports=$(docker inspect "${container_name}" --format='{{range $p, $conf := .HostConfig.PortBindings}} -p {{(index $conf 0).HostPort}}:{{$p}} {{end}}')
-    local volumes=$(docker inspect "${container_name}" --format='{{range .Mounts}}{{if eq .Type "bind"}}-v {{.Source}}:{{.Destination}}{{if .RW}}{{else}}:ro{{end}} {{end}}{{end}}')
-    local env_vars=$(docker inspect "${container_name}" --format='{{range .Config.Env}}-e {{.}} {{end}}')
-    local network=$(docker inspect "${container_name}" --format='{{range $net, $v := .NetworkSettings.Networks}}--network {{$net}} {{end}}')
-    local restart_policy=$(docker inspect "${container_name}" --format='{{.HostConfig.RestartPolicy.Name}}')
-    local labels=$(docker inspect "${container_name}" --format='{{range $k, $v := .Config.Labels}}--label {{$k}}={{$v}} {{end}}')
+    local container_config=$(sudo docker inspect "${container_name}")
+    local ports=$(sudo docker inspect "${container_name}" --format='{{range $p, $conf := .HostConfig.PortBindings}} -p {{(index $conf 0).HostPort}}:{{$p}} {{end}}')
+    local volumes=$(sudo docker inspect "${container_name}" --format='{{range .Mounts}}{{if eq .Type "bind"}}-v {{.Source}}:{{.Destination}}{{if .RW}}{{else}}:ro{{end}} {{end}}{{end}}')
+    local env_vars=$(sudo docker inspect "${container_name}" --format='{{range .Config.Env}}-e {{.}} {{end}}')
+    local network=$(sudo docker inspect "${container_name}" --format='{{range $net, $v := .NetworkSettings.Networks}}--network {{$net}} {{end}}')
+    local restart_policy=$(sudo docker inspect "${container_name}" --format='{{.HostConfig.RestartPolicy.Name}}')
+    local labels=$(sudo docker inspect "${container_name}" --format='{{range $k, $v := .Config.Labels}}--label {{$k}}={{$v}} {{end}}')
 
     # Remove old container
     if [ "$verbose" == "true" ]; then
         echo "Removing old container..."
     fi
-    docker rm "${container_name}" >/dev/null 2>&1
+    sudo docker rm "${container_name}" >/dev/null 2>&1
 
     # Create and start new container
     if [ "$verbose" == "true" ]; then
         echo "Creating new container..."
     fi
 
-    local create_command="docker create --name \"${container_name}\" \
+    local create_command="sudo docker create --name \"${container_name}\" \
         ${ports} \
         ${volumes} \
         ${env_vars} \
@@ -208,7 +220,7 @@ update_container() {
     fi
 
     eval "${create_command}" >/dev/null 2>&1
-    docker start "${container_name}" >/dev/null 2>&1
+    sudo docker start "${container_name}" >/dev/null 2>&1
 
     if [ "$quiet" != "true" ]; then
         echo -e "${GREEN}Successfully updated ${container_name}${NC}"
@@ -269,7 +281,7 @@ if [ "$ALL" == "true" ]; then
     if [ "$QUIET" != "true" ]; then
         echo -e "${BLUE}Updating all running containers...${NC}"
     fi
-    docker ps --format '{{.Names}}' | while read container; do
+    sudo docker ps --format '{{.Names}}' | while read container; do
         update_container "$container" "$FORCE" "$DRY_RUN" "$SKIP_BACKUP" "$QUIET" "$VERBOSE"
     done
 elif [ -n "$CONTAINER_NAME" ]; then
