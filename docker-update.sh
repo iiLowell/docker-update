@@ -65,68 +65,41 @@ backup_container() {
 # Function to list containers and their images
 list_containers() {
     # Print header
-    printf "${BLUE}%-20s | %-50s | %-50s | %-15s${NC}\n" "Container Name" "Current Version" "Latest Available" "Status"
-    printf "%.120s\n" "==============================================================================================================================================="
+    printf "${BLUE}%-20s | %-50s | %-10s${NC}\n" "Container Name" "Image" "Status"
+    printf "%.85s\n" "==============================================================================="
 
-    sudo docker ps --format '{{.Names}}' | while read container; do
-        # Get current image and tag
-        current_image=$(sudo docker inspect --format='{{.Config.Image}}' "${container}")
-
-        # Split image name and tag
-        if [[ $current_image == *":"* ]]; then
-            image_name=${current_image%:*}
-            current_tag=${current_image#*:}
-        else
-            image_name=$current_image
-            current_tag="latest"
-        fi
-
-        # Pull latest image silently
-        sudo docker pull -q "${image_name}:${current_tag}" >/dev/null 2>&1
-
-        # Get image IDs and details
+    # Get all container information in one call
+    sudo docker ps --format '{{.Names}}\t{{.Image}}\t{{.ID}}' | while IFS=$'\t' read -r container image container_id; do
+        # Get current image ID without pulling
         current_id=$(sudo docker inspect --format='{{.Id}}' "${container}")
-        current_digest=$(sudo docker inspect --format='{{.RepoDigests}}' "${current_image}" 2>/dev/null)
-        latest_digest=$(sudo docker inspect --format='{{.RepoDigests}}' "${image_name}:${current_tag}" 2>/dev/null)
 
-        # Get detailed version information
-        current_version=$(sudo docker inspect "${container}" --format='{{.Config.Image}} ({{.Id}})')
-        latest_version=$(sudo docker inspect "${image_name}:${current_tag}" --format='{{.RepoTags}} ({{.Id}})')
+        # Check if update is available without pulling
+        remote_digest=$(sudo docker manifest inspect "${image}" 2>/dev/null | grep -m1 "digest" | cut -d'"' -f4)
+        local_digest=$(sudo docker inspect --format='{{index .RepoDigests 0}}' "${image}" 2>/dev/null | cut -d'@' -f2)
 
-        # Compare and set status
-        if [ "$current_digest" == "$latest_digest" ]; then
-            status="${GREEN}Up to date${NC}"
+        # Set status based on digest comparison
+        if [ -z "$remote_digest" ] || [ -z "$local_digest" ]; then
+            status="${YELLOW}Unknown${NC}"
+        elif [ "$remote_digest" == "$local_digest" ]; then
+            status="${GREEN}Current${NC}"
         else
             status="${YELLOW}Update available${NC}"
         fi
 
-        # Try to get more detailed version information from labels
-        current_detail=$(sudo docker inspect "${container}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
-        latest_detail=$(sudo docker inspect "${image_name}:${current_tag}" --format='{{index .Config.Labels "org.opencontainers.image.version"}}' 2>/dev/null)
-
-        # If version labels exist, add them to the output
-        if [ ! -z "$current_detail" ]; then
-            current_version="$current_version ($current_detail)"
-        fi
-        if [ ! -z "$latest_detail" ]; then
-            latest_version="$latest_version ($latest_detail)"
-        fi
-
         # Format and print the row
-        printf "%-20s | %-50s | %-50s | %b\n" \
+        printf "%-20s | %-50s | %b\n" \
             "${container}" \
-            "${current_version:0:50}" \
-            "${latest_version:0:50}" \
+            "${image:0:50}" \
             "${status}"
     done
 
-    # Print footer with additional information
+    # Print footer
     echo
     echo -e "${BLUE}Notes:${NC}"
-    echo "- Current Version shows the image and tag currently in use by the container"
-    echo "- Latest Available shows the most recent version available in the repository"
-    echo -e "- Status: ${GREEN}Up to date${NC} or ${YELLOW}Update available${NC}"
-    echo "- Version numbers in parentheses are from image metadata (when available)"
+    echo "- Status indicates if updates are available based on image digests"
+    echo -e "- ${GREEN}Current${NC}: Running latest version"
+    echo -e "- ${YELLOW}Update available${NC}: Newer version exists"
+    echo -e "- ${YELLOW}Unknown${NC}: Unable to determine update status"
 }
 
 # Function to update a single container
